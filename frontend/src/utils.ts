@@ -1,47 +1,18 @@
+// frontend/src/utils.ts
 import { Step, StepType } from "./types";
 
-/**
- * Parse the llm response and convert it into steps
- * * Eg: Input -
- * <boltArtifact id=\"project-import\" title=\"Project Files\">
- *  <boltAction type=\"file\" filePath=\"eslint.config.js\">
- *      import js from '@eslint/js';\nimport globals from 'globals';\n
- *  </boltAction>
- * <boltAction type="shell">
- *      node index.js
- * </boltAction>
- * </boltArtifact>
- *
- * * Output -
- * [{
- *      title: "Project Files",
- *      status: "Pending"
- * }, {
- *      title: "Create eslint.config.js",
- *      type: StepType.CreateFile,
- *      code: "import js from '@eslint/js';\nimport globals from 'globals';\n"
- * }, {
- *      title: "Run command",
- *      code: "node index.js",
- *      type: StepType.RunScript
- * }]
- */
 export function parseXml(response: string): Step[] {
-  // extract the xml content between <boltArtifact> tag
-  const xmlMatch = response.match(
-    /<boltArtifact[^>]*>([\s\S]*?)<\/boltArtifact>/
-  );
+  // 1. Make the artifact match optional or search the whole response if missing
+  const xmlMatch = response.match(/<boltArtifact[^>]*>([\s\S]*?)<\/boltArtifact>/);
+  const xmlContent = xmlMatch ? xmlMatch[1] : response; // Fallback to full response
 
-  if (!xmlMatch) return [];
-  const xmlContent = xmlMatch[1];
   const steps: Step[] = [];
   let stepsId = 1;
 
-  // extract artifacts title
+  // 2. Extract title if available
   const titleMatch = xmlContent.match(/title="([^"]*)"/);
   const artifactsTitle = titleMatch ? titleMatch[1] : "Project Files";
 
-  // add initial artifact step
   steps.push({
     id: stepsId++,
     title: artifactsTitle,
@@ -50,35 +21,34 @@ export function parseXml(response: string): Step[] {
     type: StepType.CreateFolder,
   });
 
-  // regular expression to find boltAction tags
-  const actionRegex =
-    /<boltAction\s+type="([^"]*)"(?:\s+filePath="([^"]*)")?>([\s\S]*?)<\/boltAction>/g;
+  // 3. Updated regex to handle 'file', 'createFile', or 'updateFile'
+  const actionRegex = /<boltAction\s+type="(file|createFile|updateFile|shell)"(?:\s+filePath="([^"]*)")?>([\s\S]*?)<\/boltAction>/g;
 
   let match;
-
   while ((match = actionRegex.exec(xmlContent)) !== null) {
-    const [, type, filePath, content] = match;
+    const [, type, filePath, rawContent] = match;
+    
+    // 4. Clean the content by removing markdown code blocks (```html, etc.)
+    const content = rawContent.replace(/```[a-z]*\n?|```/g, "").trim();
 
-    if (type === "file") {
-      // file creation step
+    if (type === "file" || type === "createFile" || type === "updateFile") {
       steps.push({
         id: stepsId++,
-        title: filePath,
+        title: filePath || "New File",
         description: "",
         status: "pending",
         type: StepType.CreateFile,
-        code: content.trim(),
+        code: content,
         path: filePath,
       });
     } else if (type === "shell") {
-      // shell command step
       steps.push({
         id: stepsId++,
-        title: filePath,
+        title: "Run Command",
         description: "",
         status: "pending",
         type: StepType.RunScript,
-        code: content.trim(),
+        code: content,
       });
     }
   }

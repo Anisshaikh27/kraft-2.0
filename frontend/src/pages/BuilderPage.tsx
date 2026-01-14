@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { BACKEND_URL } from "../config";
 import { FileExplorer } from "../components/FileExplorer";
-import { FilePreview } from "../components/FilePreview";
+
 import { CodeEditor } from "../components/CodeEditor";
 import { ChatPanel } from "../components/ChatPanel";
 import { useInitializeProject } from "../hooks/useInitializeProject";
@@ -38,8 +38,8 @@ export function BuilderPage({ files, setFiles }: BuilderProps) {
 
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "code" | "editor" | "chat" | "preview"
-  >("code");
+    "editor" | "chat" | "preview"
+  >("editor");
 
   // Handle file updates from editor
   const handleCodeChange = (newCode: string) => {
@@ -65,11 +65,14 @@ export function BuilderPage({ files, setFiles }: BuilderProps) {
   };
 
   // Handle chat messages
-  const handleSendMessage = async (message: string) => {
-    const newMessage: Message = {
-      role: "user",
-      content: message,
-    };
+const handleSendMessage = async (message: string) => {
+  // Append a reminder to ensure Gemini uses the XML tags
+  const formattedMessage = message + "\n\nIMPORTANT: Return code only using <boltArtifact> and <boltAction> tags.";
+  
+  const newMessage: Message = {
+    role: "user",
+    content: formattedMessage, 
+  };
 
     setLlmMessages((prev) => [...prev, newMessage]);
     setLoading(true);
@@ -288,7 +291,7 @@ export function BuilderPage({ files, setFiles }: BuilderProps) {
         <div className="col-span-2 bg-gray-900 rounded-lg shadow-lg h-[calc(100vh-8rem)]">
           <TabView activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="h-[calc(100%-5rem)]">
-            {activeTab === "code" && <FilePreview selectedFile={selectedFile} />}
+           
             {activeTab === "editor" && (
               <CodeEditor
                 selectedFile={selectedFile}
